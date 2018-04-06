@@ -150,14 +150,14 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		for(int i=0; i<map_coord_observations.size(); i++)
 		{
 			double min_dist = 1000000.0;
-			double associated_landmark_index = -1;
+			int associated_landmark_index = -1;
 			
 			LandmarkObs obs = map_coord_observations[i];
 			
 			for(int j=0; j<inrange_landmarks.size(); j++)
 			{
 				Map::single_landmark_s landmark = map_landmarks.landmark_list[inrange_landmarks[j]];
-				float expected_distance = dist(obs.x, obs.y, landmark.x_f, landmark.y_f);
+				double expected_distance = dist(obs.x, obs.y, landmark.x_f, landmark.y_f);
 				if(expected_distance<min_dist)
 				{
 					associated_landmark_index = inrange_landmarks[j];
@@ -167,9 +167,10 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			cout<<"\n\nmin dist for particle "<<t<< " is "<<min_dist;
 			cout<<"\nparticle x is "<<particle.x<<", particle y is "<<particle.y;
 			
-			LandmarkObs lm = map_coord_observations[associated_landmark_index];
+			Map::single_landmark_s lm = map_landmarks.landmark_list[associated_landmark_index];
 			cout<<"\nobs x is "<<obs.x<<", obs y is "<<obs.y;
-			cout<<"\nAL x is " <<lm.x<<", AL y is "<<lm.y;
+			cout<<"\nAL x is " <<lm.x_f<<", AL y is "<<lm.y_f;
+			
 			associated_landmarks.push_back(associated_landmark_index);
 		}
 		
