@@ -19,6 +19,9 @@
 const double M_PI = 3.14159265358979323846;
 #endif
 
+#ifndef M_e
+const double M_e = 2.718281828459045;
+#endif
 /*
  * Struct representing one position/control measurement.
  */
@@ -46,6 +49,7 @@ struct LandmarkObs {
 	int id;				// Id of matching landmark in the map.
 	double x;			// Local (vehicle coordinates) x position of landmark observation [m]
 	double y;			// Local (vehicle coordinates) y position of landmark observation [m]
+	double observed_distance;
 };
 
 /*
