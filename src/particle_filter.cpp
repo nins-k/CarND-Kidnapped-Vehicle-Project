@@ -164,14 +164,22 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 					min_dist = expected_distance;
 				}
 			}
-			cout<<"\n\nmin dist for particle "<<t<< " is "<<min_dist;
-			cout<<"\nparticle x is "<<particle.x<<", particle y is "<<particle.y;
-			
-			Map::single_landmark_s lm = map_landmarks.landmark_list[associated_landmark_index];
-			cout<<"\nobs x is "<<obs.x<<", obs y is "<<obs.y;
-			cout<<"\nAL x is " <<lm.x_f<<", AL y is "<<lm.y_f;
-			
+
 			associated_landmarks.push_back(associated_landmark_index);
+		}
+		
+
+		cout<<"\n\nCurrent particle is " <<t;
+		cout<<"\nParticle is at " <<particle.x<<", "<<particle.y<<"\n";	
+		for(int b=0;b<map_coord_observations.size();b++)
+		{
+			LandmarkObs lobs = map_coord_observations[b];
+	
+			cout<<"\nMap coord obs "<<b<<" is " <<lobs.x<<", "<<lobs.y;
+			cout<<"\nAssosiated to landmark index "<<associated_landmarks[b];
+			
+			Map::single_landmark_s lm = map_landmarks.landmark_list[associated_landmarks[b]];
+			cout<<"\nLandmark is at "<<lm.x_f<<", "<<lm.y_f<<"\n";
 		}
 		
 		// Calculate the particle's final weight
