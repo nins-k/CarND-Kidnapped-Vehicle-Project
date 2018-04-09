@@ -25,13 +25,14 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 	
+
 	// Initialize gaussians
 	normal_distribution<double> dist_x(x, std[0]);
 	normal_distribution<double> dist_y(y, std[1]);
 	normal_distribution<double> dist_theta(theta, std[2]);
 	
 	// Initialize particles
-	num_particles = 5;
+	num_particles = 50;
 	default_random_engine gen;
 	
 	for(int i=0;i<num_particles;i++)
@@ -41,12 +42,12 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 		p.x = dist_x(gen);
 		p.y = dist_y(gen);
 		p.theta = dist_theta(gen);
-		particles.push_back(p);
-		double w = 1;
+		double w = 1.0;
 		p.weight = w;
-		weights.push_back(w);
+		particles.push_back(p);
+		weights.push_back(w);		
 	}
-	
+
 	is_initialized = true;
 }
 
@@ -56,27 +57,41 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 	
-	double x;
-	double y;
-	double theta;
+
+	/*
+	cout<<"\n\nPre-Prediction Check!!\n";
+	for(int i=0;i<num_particles;i++)
+	{
+		cout<<"\nFor particle "<<i<<" the x is "<<particles[i].x;
+	}
+	*/
 	
 	// Calculate new x,y,theta
+	double vel_by_yaw_rate = (velocity/yaw_rate);
+	double vel_times_dt = velocity*delta_t;
+	double yaw_rate_times_dt = yaw_rate*delta_t;
+	default_random_engine gen;
 	for(int i=0;i<num_particles;i++)
 	{	
-		double theta_zero = particles[i].theta;
+			
 		double x_zero = particles[i].x;
 		double y_zero = particles[i].y;
+		double theta_zero = particles[i].theta;
 		
-		if(yaw_rate == 0)
+		double x;
+		double y;
+		double theta;
+		
+		if((yaw_rate == 0)||(fabs(yaw_rate)<0.0001))
 		{
-			x = x_zero + velocity*delta_t*cos(theta_zero);
-			y = y_zero + velocity*delta_t*sin(theta_zero);
+			x = x_zero + vel_times_dt*cos(theta_zero);
+			y = y_zero + vel_times_dt*sin(theta_zero);
 			theta = theta_zero;
 		}
 		else 
 		{
-			x = x_zero + (velocity/yaw_rate)*(sin(theta_zero + yaw_rate*delta_t) - sin(theta_zero));
-			y = y_zero + (velocity/yaw_rate)*(cos(theta_zero) - cos(theta_zero + yaw_rate*delta_t));
+			x = x_zero + vel_by_yaw_rate*(sin(theta_zero + yaw_rate_times_dt) - sin(theta_zero));
+			y = y_zero + vel_by_yaw_rate*(cos(theta_zero) - cos(theta_zero + yaw_rate_times_dt));
 			theta = theta_zero + yaw_rate*delta_t;
 		}
 		
@@ -84,12 +99,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 		normal_distribution<double> dist_x(x, std_pos[0]);
 		normal_distribution<double> dist_y(y, std_pos[1]);
 		normal_distribution<double> dist_theta(theta, std_pos[2]);
-		default_random_engine gen;
+		
 		
 		particles[i].x = dist_x(gen);
 		particles[i].y = dist_y(gen);
 		particles[i].theta = dist_theta(gen);
+		
 	}
+	
 	
 	
 }
@@ -114,94 +131,75 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
-	
-	// For each particle ~
-	for(int t=0;t<num_particles;t++)
+	//cout<<"\n\n*~*~*~ Update Called *~*~*";
+	for(int p=0; p<num_particles; p++)
 	{
-		Particle particle = particles[t];
-		
-		// Obtain a vector of observations in map co-ordinates
-		std::vector<LandmarkObs> map_coord_observations;
-		for(int i=0;i<observations.size();i++)
-		{
-			LandmarkObs car_obs = observations[i];
-			LandmarkObs trans_obs;
-			
-			trans_obs.x = car_obs.x*cos(particle.theta) - car_obs.y*sin(particle.theta) + particle.x;
-			trans_obs.y = car_obs.x*sin(particle.theta) + car_obs.y*cos(particle.theta) + particle.y;
-			trans_obs.observed_distance = dist(particle.x, particle.y, trans_obs.y, trans_obs.y);
-			map_coord_observations.push_back(trans_obs);
-		}
-		
-		// Obtain a vector of landmarks that are within the sensor range
-		std::vector<int> inrange_landmarks;
-		for(int i=0;i<map_landmarks.landmark_list.size();i++)
-		{
-			Map::single_landmark_s landmark = map_landmarks.landmark_list[i];
-			float expected_distance = dist(particle.x, particle.y, landmark.x_f, landmark.y_f);
-			if(sensor_range<=expected_distance)
-			{
-				inrange_landmarks.push_back(i);
-			}
-		}
-		
-		// Obtain index of associated landmarks for each observation
-		std::vector<int> associated_landmarks;	
-		for(int i=0; i<map_coord_observations.size(); i++)
-		{
-			double min_dist = 1000000.0;
-			int associated_landmark_index = -1;
-			
-			LandmarkObs obs = map_coord_observations[i];
-			
-			for(int j=0; j<inrange_landmarks.size(); j++)
-			{
-				Map::single_landmark_s landmark = map_landmarks.landmark_list[inrange_landmarks[j]];
-				double expected_distance = dist(obs.x, obs.y, landmark.x_f, landmark.y_f);
-				if(expected_distance<min_dist)
-				{
-					associated_landmark_index = inrange_landmarks[j];
-					min_dist = expected_distance;
-				}
-			}
-
-			associated_landmarks.push_back(associated_landmark_index);
-		}
-		
-
-		cout<<"\n\nCurrent particle is " <<t;
-		cout<<"\nParticle is at " <<particle.x<<", "<<particle.y<<"\n";	
-		for(int b=0;b<map_coord_observations.size();b++)
-		{
-			LandmarkObs lobs = map_coord_observations[b];
-	
-			cout<<"\nMap coord obs "<<b<<" is " <<lobs.x<<", "<<lobs.y;
-			cout<<"\nAssosiated to landmark index "<<associated_landmarks[b];
-			
-			Map::single_landmark_s lm = map_landmarks.landmark_list[associated_landmarks[b]];
-			cout<<"\nLandmark is at "<<lm.x_f<<", "<<lm.y_f<<"\n";
-		}
-		
-		// Calculate the particle's final weight
+		//cout<<"\n\nStarting Particle: "<<p;
 		double final_weight = 1.0;
 		
-		for(int k=0; k<map_coord_observations.size(); k++)
+		for(int o=0; o<observations.size(); o++)
 		{
-			LandmarkObs obs = map_coord_observations[k];
-			Map::single_landmark_s landmark = map_landmarks.landmark_list[associated_landmarks[k]];
+			//cout<<"\nParticle: "<<p<<" , Observation: "<<o;
+					
+			double transformed_x =   observations[o].x * cos(particles[p].theta)
+								   - observations[o].y * sin(particles[p].theta)
+								   + particles[p].x;
 			
-			double denominator = 1.0/(2.0*M_PI*std_landmark[0]*std_landmark[1]);
-			double exp_term_x = (obs.x - landmark.x_f)*(obs.x - landmark.x_f)/(2.0*std_landmark[0]*std_landmark[0]);
-			double exp_term_y = (obs.y - landmark.y_f)*(obs.y - landmark.y_f)/(2.0*std_landmark[1]*std_landmark[1]);
-			//std::cout<<"exp_term_x: "<<exp_term_x<<endl;
-			//std::cout<<"exp_term_y: "<<exp_term_y<<endl;
-			//std::cout<<"Final weight pre exp: "<<final_weight<<endl;
-			final_weight = final_weight* (denominator * exp(- exp_term_x - exp_term_y));
-			//std::cout<<"Final weight post exp: "<<final_weight<<endl;
+			double transformed_y =   observations[o].x * sin(particles[p].theta)
+								   + observations[o].y * cos(particles[p].theta)
+								   + particles[p].y;
+								   
+			
+			double min_landmark_obs_distance = 200.0;
+			int min_landmark_index = -1;
+			
+			for(int l=0; l<map_landmarks.landmark_list.size(); l++) {
+				
+				double landmark_particle_distance = dist(particles[p].x, particles[p].y,map_landmarks.landmark_list[l].x_f, map_landmarks.landmark_list[l].y_f);
+														 
+				if(landmark_particle_distance <= sensor_range)
+				{ 
+					double landmark_obs_distance = dist(transformed_x, transformed_y,
+														map_landmarks.landmark_list[l].x_f, map_landmarks.landmark_list[l].y_f);
+					
+					if(landmark_obs_distance < min_landmark_obs_distance)
+					{
+						
+						min_landmark_obs_distance = landmark_obs_distance;
+						min_landmark_index = l;
+						
+					}
+				}
+				
+			}
+			 //cout<<"\nTransformed: ("<<transformed_x<<", "<<transformed_y<<")";
+			 //cout<<"\nLandmark: ("<<map_landmarks.landmark_list[min_landmark_index].x_f<<", "<<map_landmarks.landmark_list[min_landmark_index].y_f<<")";
+			if(min_landmark_index != -1)
+			{
+				
+				double obs_probability = exp(-1*
+												(
+													(pow(transformed_x - map_landmarks.landmark_list[min_landmark_index].x_f, 2)
+													/(2*pow(std_landmark[0],2)))
+												  +
+												    (pow(transformed_y - map_landmarks.landmark_list[min_landmark_index].y_f, 2)
+													/(2*pow(std_landmark[1],2)))
+												)
+											)
+											*1/(2 * M_PI * std_landmark[0] * std_landmark[1]);
+				//cout<<"\nobs prob :"<<obs_probability;							
+				final_weight *= obs_probability;
+			}	
+			
 		}
-		particle.weight = final_weight;
-		weights[t] = final_weight;
+		//cout<<"\nFinal Weight for Particle "<<p<<": "<<final_weight;
+		particles[p].weight = final_weight;
+		weights[p] = final_weight;
 	}
+	
+	
+
+	
 }
 
 void ParticleFilter::resample() {
